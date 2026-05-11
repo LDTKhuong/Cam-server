@@ -1,28 +1,36 @@
 const WebSocket = require('ws');
+const http = require('http');
 
-// Khởi tạo Trạm thu phát trên cổng 8080
-const PORT = 8081;
-const wss = new WebSocket.Server({ host: '0.0.0.0', port: PORT });
+// 1. Tạo một Server HTTP cơ bản để Render kiểm tra "sức khỏe" hệ thống
+const server = http.createServer((req, res) => {
+    res.writeHead(200);
+    res.end('Cloud connected');
+});
 
-console.log(`server is running at ${PORT} ...`);
+// 2. Gắn WebSocket vào Server HTTP này
+const wss = new WebSocket.Server({ server });
 
-// Sự kiện: Khi có mạch ESP32 hoặc trang Web kết nối vào
+// 3. Render sẽ tự cấp cổng ngẫu nhiên qua biến process.env.PORT, nếu chạy ở máy tính thì dùng 8081
+const PORT = process.env.PORT || 8081;
+
 wss.on('connection', (ws) => {
-    console.log('new connect, number of devices:', wss.clients.size);
-
-    // Sự kiện: Khi Trạm nhận được ảnh từ ESP32
+    console.log('connected:', wss.clients.size);
+    
+    // Khi nhận được ảnh từ ESP32
     ws.on('message', (data) => {
-        // Broadcast: Phát bức ảnh đó cho TẤT CẢ các thiết bị đang kết nối
+        // Phát ảnh cho tất cả các thiết bị đang kết nối (Trang Web)
         wss.clients.forEach((client) => {
-            // Không gửi ngược lại cho chính cái mạch ESP32 vừa ném ảnh lên
             if (client !== ws && client.readyState === WebSocket.OPEN) {
                 client.send(data);
             }
         });
     });
 
-    // Sự kiện: Khi mất kết nối
     ws.on('close', () => {
-        console.log('connect fail, number of devices:', wss.clients.size);
+        console.log('connect fail:', wss.clients.size);
     });
+});
+
+server.listen(PORT, () => {
+    console.log(`server is running ${PORT}`);
 });
